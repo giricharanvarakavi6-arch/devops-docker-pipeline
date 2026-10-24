@@ -218,12 +218,33 @@
             cursor: not-allowed;
         }
 
-        .seat-grid {
+        /* Seat grid wrapper to align row labels */
+        .seat-grid-wrapper {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
             margin-bottom: 2rem;
+        }
+
+        .seat-row-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.8rem;
+            margin-bottom: 0.5rem;
+            width: 100%;
+        }
+
+        .row-label {
+            width: 32px;
+            text-align: center;
+            color: #ffd966;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+            flex-shrink: 0;
+            user-select: none;
         }
 
         .row {
@@ -231,6 +252,7 @@
             justify-content: center;
             gap: 0.6rem;
             flex-wrap: wrap;
+            flex: 1;
         }
 
         .seat {
@@ -433,6 +455,13 @@
             .row {
                 gap: 0.4rem;
             }
+            .seat-row-container {
+                gap: 0.5rem;
+            }
+            .row-label {
+                width: 24px;
+                font-size: 0.85rem;
+            }
             .booking-footer {
                 flex-direction: column;
                 gap: 1.2rem;
@@ -454,6 +483,13 @@
                 width: 26px;
                 height: 26px;
                 border-radius: 6px 6px 12px 12px;
+            }
+            .row-label {
+                width: 20px;
+                font-size: 0.75rem;
+            }
+            .row {
+                gap: 0.3rem;
             }
             .movie-card {
                 padding: 1rem;
@@ -511,7 +547,8 @@
         <div class="legend-item"><div class="seat-sample occupied"></div> Occupied / Booked</div>
     </div>
 
-    <div class="seat-grid" id="seatGrid"></div>
+    <!-- Seat grid with row labels -->
+    <div class="seat-grid-wrapper" id="seatGridWrapper"></div>
 
     <div class="booking-footer">
         <div class="selected-info">
@@ -541,43 +578,53 @@
         const SEATS_PER_ROW = 10;
         const TICKET_PRICE = 12.5;
 
-        // Initial occupied pattern (these are "already taken" by others)
+        // Row labels: A, B, C, D, E, F
+        const ROW_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+        // Initial occupied pattern (0 = available, 1 = occupied by others)
         const OCCUPIED_MAP = [
-            [0,0,0,0,1,1,0,0,0,0], // row 1
-            [0,0,0,0,0,0,0,0,0,0], // row 2
-            [0,0,1,0,0,0,0,1,0,0], // row 3
-            [0,0,0,0,0,0,0,0,0,0], // row 4
-            [1,1,0,0,0,1,0,0,1,0], // row 5
-            [0,0,0,0,0,0,0,0,0,0]  // row 6
+            [0,0,0,0,1,1,0,0,0,0], // row A (0)
+            [0,0,0,0,0,0,0,0,0,0], // row B (1)
+            [0,0,1,0,0,0,0,1,0,0], // row C (2)
+            [0,0,0,0,0,0,0,0,0,0], // row D (3)
+            [1,1,0,0,0,1,0,0,1,0], // row E (4)
+            [0,0,0,0,0,0,0,0,0,0]  // row F (5)
         ];
 
         // ---------- state ----------
-        let selectedSeats = new Set();
-        // bookedSeats: seats that have been booked by the user (blocked until reload)
-        // using a Set to store seat IDs like "R1-S3"
-        const bookedSeats = new Set();
+        let selectedSeats = new Set();      // seats currently selected
+        const bookedSeats = new Set();      // seats booked by user (blocked until reload)
 
         // DOM elements
-        const seatGrid = document.getElementById('seatGrid');
+        const seatGridWrapper = document.getElementById('seatGridWrapper');
         const seatCountSpan = document.getElementById('seatCount');
         const totalAmountSpan = document.getElementById('totalAmount');
         const bookBtn = document.getElementById('bookBtn');
         const toast = document.getElementById('toast');
         const toastMessage = document.getElementById('toastMessage');
 
-        // ---------- helper: check if seat is occupied (initial or booked) ----------
+        // ---------- helper: check if seat is occupied (initially or booked) ----------
         function isSeatOccupied(row, col, seatId) {
-            // check initial occupied map
             const isInitiallyOccupied = OCCUPIED_MAP[row] && OCCUPIED_MAP[row][col] === 1;
-            // check if seat has been booked by user (blocked until reload)
             const isBooked = bookedSeats.has(seatId);
             return isInitiallyOccupied || isBooked;
         }
 
-        // ---------- build seat grid ----------
+        // ---------- build seat grid WITH row labels ----------
         function buildSeatGrid() {
-            seatGrid.innerHTML = '';
+            seatGridWrapper.innerHTML = '';
+
             for (let r = 0; r < ROWS; r++) {
+                const rowContainer = document.createElement('div');
+                rowContainer.className = 'seat-row-container';
+
+                // Row label (A, B, C...)
+                const rowLabel = document.createElement('div');
+                rowLabel.className = 'row-label';
+                rowLabel.textContent = ROW_LABELS[r] || (r + 1);
+                rowContainer.appendChild(rowLabel);
+
+                // Seats container
                 const rowDiv = document.createElement('div');
                 rowDiv.className = 'row';
 
@@ -592,19 +639,14 @@
                     const occupied = isSeatOccupied(r, c, seatId);
 
                     if (occupied) {
-                        // Mark as occupied/booked
                         if (bookedSeats.has(seatId)) {
-                            // This is a seat booked by the user (after booking)
                             seat.classList.add('booked');
                             seat.innerHTML = '<i class="fas fa-lock"></i>';
                         } else {
-                            // Initially occupied seat (taken by someone else)
                             seat.classList.add('occupied');
                             seat.innerHTML = '<i class="fas fa-times-circle"></i>';
                         }
-                        // No click handler for occupied/booked seats
                     } else {
-                        // Available seat
                         seat.classList.add('available');
                         seat.textContent = c + 1;
                         seat.addEventListener('click', onSeatClick);
@@ -612,7 +654,9 @@
 
                     rowDiv.appendChild(seat);
                 }
-                seatGrid.appendChild(rowDiv);
+
+                rowContainer.appendChild(rowDiv);
+                seatGridWrapper.appendChild(rowContainer);
             }
         }
 
@@ -621,7 +665,6 @@
             const seat = e.currentTarget;
             const seatId = seat.dataset.seatId;
 
-            // Double-check: don't allow if seat is occupied or booked
             if (seat.classList.contains('occupied') || seat.classList.contains('booked')) {
                 return;
             }
@@ -629,12 +672,10 @@
             const isSelected = seat.classList.contains('selected');
 
             if (isSelected) {
-                // Deselect
                 seat.classList.remove('selected');
                 seat.classList.add('available');
                 selectedSeats.delete(seatId);
             } else {
-                // Select (limit to 8 seats)
                 if (selectedSeats.size >= 8) {
                     showToast('You can select up to 8 seats', 'fa-exclamation-triangle');
                     return;
@@ -653,8 +694,6 @@
             seatCountSpan.textContent = count;
             const total = (count * TICKET_PRICE).toFixed(2);
             totalAmountSpan.textContent = total;
-
-            // Enable/disable book button
             bookBtn.disabled = count === 0;
         }
 
@@ -680,33 +719,24 @@
             const count = selectedSeats.size;
             const total = (count * TICKET_PRICE).toFixed(2);
 
-            // Show success toast
             showToast(`🎟️ Booked ${count} seat(s) for $${total}!`, 'fa-check-circle');
 
-            // Mark all selected seats as booked (block until reload)
+            // Mark selected seats as booked (blocked until reload)
             selectedSeats.forEach(seatId => {
                 bookedSeats.add(seatId);
 
                 const seatEl = document.querySelector(`.seat[data-seat-id="${seatId}"]`);
                 if (seatEl) {
-                    // Remove selected/available classes
                     seatEl.classList.remove('selected', 'available');
-                    // Add booked class
                     seatEl.classList.add('booked');
                     seatEl.innerHTML = '<i class="fas fa-lock"></i>';
-                    // Remove click listener (pointer-events: none also helps)
                     seatEl.removeEventListener('click', onSeatClick);
-                    // Also ensure no pointer events
                     seatEl.style.pointerEvents = 'none';
                 }
             });
 
-            // Clear the selected seats set
             selectedSeats.clear();
             updateSummary();
-
-            // Re-enable book button state (disabled because count = 0)
-            // but we also want to show it's disabled
         }
 
         // ---------- movie card interaction ----------
@@ -725,10 +755,9 @@
             updateSummary();
             initMovieCards();
 
-            // Book button listener
             bookBtn.addEventListener('click', handleBooking);
 
-            // Add listeners for occupied seats to show a message (optional)
+            // Add listeners for occupied/booked seats to show a message
             document.querySelectorAll('.seat.occupied').forEach(seat => {
                 seat.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -736,7 +765,6 @@
                 });
             });
 
-            // Also for booked seats (though they have pointer-events: none)
             document.querySelectorAll('.seat.booked').forEach(seat => {
                 seat.addEventListener('click', (e) => {
                     e.stopPropagation();
